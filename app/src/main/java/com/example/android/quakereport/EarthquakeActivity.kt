@@ -15,133 +15,207 @@
  */
 package com.example.android.quakereport
 
-import android.os.AsyncTask
 import android.os.Bundle
-import android.support.v4.widget.ContentLoadingProgressBar
+import android.app.LoaderManager
+import android.content.Context
+import android.content.Loader
+import android.support.v4.widget.SwipeRefreshLayout
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.view.View
 import android.widget.ListView
 import android.widget.ProgressBar
 import android.widget.TextView
-import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
+import android.content.Intent
+import android.location.Location
+import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.Uri
+import android.preference.PreferenceManager
+import android.view.Menu
+import android.view.MenuItem
+import java.text.SimpleDateFormat
+import java.util.*
 
-class EarthquakeActivity : AppCompatActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.earthquake_activity)
-        val progressBarView = findViewById(R.id.main_activity_progress_bar) as ProgressBar
-        progressBarView.visibility= View.VISIBLE
+class EarthquakeActivity : AppCompatActivity(), LoaderManager.LoaderCallbacks<ArrayList<Earthquake>> {
 
-        val earthquakeLoadAsyncTask = EarthquakeLoadAsyncTask()
-        earthquakeLoadAsyncTask.execute(URL("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2018-02-08&latitude=40.3595967&longitude=-111.7797258&maxradiuskm=2000&minmagnitude=2.00"))
-    }
-
-    private fun displayLoadedEarthquakes(earthquakes: ArrayList<Earthquake>?) {
-        if (earthquakes != null) {
-            val progressBarView = findViewById(R.id.main_activity_progress_bar) as ContentLoadingProgressBar
-            progressBarView.visibility = View.GONE
-
-            if (earthquakes.size == 0) {
-                val errorView = findViewById(R.id.main_activity_error) as TextView
-                if (errorView.visibility != View.VISIBLE) {
-                    errorView.text = "No earthquakes found"
-                    errorView.visibility = View.VISIBLE
-                } // else: an error occurred.  Leave it on the screen
-            } else {
-                // Find a reference to the {@link ListView} in the layout
-                val earthquakeListView = findViewById(R.id.list) as ListView?
-
-                // Create a new {@link ArrayAdapter} of earthquakes
-                val adapter = EarthquakeDataArrayAdapter(this, earthquakes)
-
-                // Set the adapter on the {@link ListView}
-                // so the list can be populated in the user interface
-                earthquakeListView!!.adapter = adapter
-                earthquakeListView.visibility = View.VISIBLE
-            }
-        }
-    }
-
-    private fun displayUpdatedProgress(progressAmount: EarthquakeDataLoadProgress?) {
-        progressAmount?.let {
-            val progressBarView = findViewById(R.id.main_activity_progress_bar) as ContentLoadingProgressBar
-            val errorView = findViewById(R.id.main_activity_error) as TextView
-
-            if (progressAmount.error != null) {
-                progressBarView.visibility = View.GONE
-                errorView.visibility = View.VISIBLE
-                errorView.text = progressAmount.error.toString()
-            } else {
-                val progressBarView = findViewById(R.id.main_activity_progress_bar) as ContentLoadingProgressBar
-                progressBarView.visibility = View.VISIBLE
-                progressBarView.progress = progressAmount.progress
-            }
-        }
-    }
-
+    //var lastKnownLocation: Location? = null
 
     companion object {
         val LOG_TAG: String = EarthquakeActivity::class.java.name
+        val EARTHQUAKE_LOADER: Int = 1
+        val USGS_REQUEST_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query"
     }
 
-    /**
-     * {@link AsyncTask} to perform the network request on a background thread, and then
-     * update the UI with the first earthquake in the response.
-     */
-    private inner class EarthquakeLoadAsyncTask : AsyncTask<URL, EarthquakeDataLoadProgress, ArrayList<Earthquake>>() {
-        override fun doInBackground(vararg params: URL?): ArrayList<Earthquake> {
-            // Perform HTTP request to the URL and receive a JSON response back
-            publishProgress(EarthquakeDataLoadProgress(20))
-            var jsonResponse: String = ""
-            if (params.size > 0) {
-                params[0]?.let {
-                    try {
-                        jsonResponse = makeHttpRequest(it);
-                        publishProgress(EarthquakeDataLoadProgress(70))
-                    } catch (e: IOException) {
-                        Log.e(LOG_TAG, "error getting url:" + this, e)
-                        publishProgress(EarthquakeDataLoadProgress(70, e))
-                        return ArrayList<Earthquake>()
-                    }
-                }
-            }
-            //return QueryUtils.dummyData()
-            val response = QueryUtils.parseJsonData(jsonResponse)
-            publishProgress(EarthquakeDataLoadProgress(100))
-            return response
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        /*
+        val locationManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val locationProvider = LocationManager.NETWORK_PROVIDER
+        try {
+            lastKnownLocation = locationManager.getLastKnownLocation(locationProvider)
+        } catch (e: SecurityException) {
+            Log.e(LOG_TAG, "security error getting url:" + this, e)
+        }
+        */
+
+        setContentView(R.layout.earthquake_activity)
+
+        fetchEarthquakeData()
+
+        val refreshLayout = findViewById(R.id.swiperefresh) as SwipeRefreshLayout
+
+        refreshLayout.setOnRefreshListener {
+            fetchEarthquakeData()
+            Log.v(LOG_TAG, "got a swipe refresh event")
+        }
+    }
+
+    private fun fetchEarthquakeData() {
+        val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        val activeNetwork = cm.activeNetworkInfo
+        val isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting
+
+        val loaderArgs = Bundle()
+        loaderArgs.putString("queryString", buildQueryURL())
+
+        if (isConnected) {
+            val progressBarView = findViewById(R.id.main_activity_progress_bar) as ProgressBar
+            progressBarView.visibility = View.VISIBLE
+
+            val emptyTextView = findViewById(R.id.main_empty_view) as TextView
+            emptyTextView.text = getString(R.string.no_earthquakes_found)
+
+            initOrRestartLoader(loaderArgs)
+            Log.v(LOG_TAG, "calling initLoader")
+        } else {
+            val emptyTextView = findViewById(R.id.main_empty_view) as TextView
+            emptyTextView.text = getString(R.string.no_internet)
+
+            displayLoadedEarthquakes(ArrayList())
+        }
+    }
+
+    fun buildQueryURL(): String {
+        val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val minMagnitude = sharedPrefs.getString(
+                getString(R.string.settings_min_magnitude_key),
+                getString(R.string.settings_min_magnitude_default))
+
+        val limitCount = sharedPrefs.getString(
+                getString(R.string.settings_limit_key),
+                getString(R.string.settings_limit_default))
+
+        val searchRadiusKm = sharedPrefs.getString(
+                getString(R.string.settings_radius_key),
+                getString(R.string.settings_radius_default))
+
+        var latitude = "40.3595967"
+        var longitude = "-111.7797258"
+
+        val searchLatLong = sharedPrefs.getString(
+                getString(R.string.settings_coordinates_key),
+                getString(R.string.settings_coordinates_default))
+        val latLongArray = searchLatLong.split(" ")
+        if (latLongArray.size == 2) {
+            latitude = latLongArray[0]
+            longitude = latLongArray[1]
         }
 
-        override fun onProgressUpdate(vararg values: EarthquakeDataLoadProgress?) {
-            displayUpdatedProgress(values[0])
-        }
+        val orderBy = sharedPrefs.getString(
+                getString(R.string.settings_orderby_key),
+                getString(R.string.settings_orderby_default))
 
-        override fun onPostExecute(result: ArrayList<Earthquake>?) {
-            displayLoadedEarthquakes(result)
-        }
+        val dayCount = sharedPrefs.getString(
+                getString(R.string.settings_daycount_key),
+                getString(R.string.settings_daycount_default))
+        val dayCountInt = dayCount.toInt()
 
-        fun makeHttpRequest(url: URL): String {
-            var response: String = ""
-            var urlConnection: HttpURLConnection = url.openConnection() as HttpURLConnection;
-            urlConnection?.readTimeout=10000
-            urlConnection?.connectTimeout = 15000
-            try {
-                urlConnection?.connect()
-                if (urlConnection.responseCode == HttpURLConnection.HTTP_OK) {
-                    val inputStream = urlConnection.getInputStream();
-                    response = inputStream.bufferedReader().use { it.readText() }
-                } else {
-                    val errorMessage =  "got unexpected Http status code: " + urlConnection.responseCode + ", " + urlConnection.responseMessage
-                    Log.v(LOG_TAG, errorMessage)
-                    throw java.io.IOException(errorMessage)
-                }
-            } catch (e: SecurityException) {
-                // get permissions?
-            }
-            return response
+        val curTimeMillis = System.currentTimeMillis()
+        val starTimeMillis = curTimeMillis - (1000*60*60*24*dayCountInt)
+        val startDate = Date(starTimeMillis)
+        val dateFormatter = SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ssZ")
+        val startDateString = dateFormatter.format(startDate)
+
+
+
+        val baseUri = Uri.parse(USGS_REQUEST_URL)
+        val uriBuilder = baseUri.buildUpon()
+        uriBuilder.appendQueryParameter("format", "geojson")
+        if (limitCount.toInt() > 0) {
+            uriBuilder.appendQueryParameter("limit", limitCount)
+        }
+        uriBuilder.appendQueryParameter("minmagnitude", minMagnitude)
+        uriBuilder.appendQueryParameter("orderby", orderBy)
+        uriBuilder.appendQueryParameter("starttime", startDateString)
+        uriBuilder.appendQueryParameter("latitude", latitude)
+        uriBuilder.appendQueryParameter("longitude", longitude)
+        uriBuilder.appendQueryParameter("maxradiuskm", searchRadiusKm)
+        Log.v(LOG_TAG, "built query:" + uriBuilder.toString())
+        return uriBuilder.toString()
+
+    }
+
+
+    fun initOrRestartLoader(args: Bundle?) {
+        if (loaderManager.getLoader<ArrayList<Earthquake>>(EARTHQUAKE_LOADER) != null) {
+            loaderManager.restartLoader(EARTHQUAKE_LOADER, args, this)
+        } else {
+            loaderManager.initLoader(EARTHQUAKE_LOADER, args, this)
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main, menu)
+        return true
+    }
+
+
+    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
+        val id = item?.itemId
+        if (id == R.id.action_settings) {
+            val settingsIntent = Intent(this, SettingsActivity::class.java)
+            startActivity(settingsIntent)
+            return true
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    override fun onCreateLoader(id: Int, args: Bundle): Loader<ArrayList<Earthquake>> {
+        Log.v(LOG_TAG, "in onCreateLoader")
+        return EarthquakeDataLoader(applicationContext, args.getString("queryString"))
+    }
+
+    override fun onLoadFinished(loader: Loader<ArrayList<Earthquake>>?, data: ArrayList<Earthquake>?) {
+        displayLoadedEarthquakes(data)
+    }
+
+    override fun onLoaderReset(loader: Loader<ArrayList<Earthquake>>?) {
+    }
+
+    private fun displayLoadedEarthquakes(earthquakes: ArrayList<Earthquake>?) {
+        val refreshLayout = findViewById(R.id.swiperefresh) as SwipeRefreshLayout
+        refreshLayout.isRefreshing = false
+        Log.v(LOG_TAG, "got " + earthquakes?.size + " items")
+
+        val progressBarView = findViewById(R.id.main_activity_progress_bar) as ProgressBar
+        progressBarView.visibility= View.GONE
+
+        if (earthquakes != null) {
+            val earthquakeListView = findViewById(R.id.list) as ListView
+            val emptyTextView = findViewById(R.id.main_empty_view) as TextView
+            earthquakeListView.emptyView = emptyTextView
+
+            // Create a new {@link ArrayAdapter} of earthquakes
+            val adapter = EarthquakeDataArrayAdapter(this, earthquakes)
+
+            // Set the adapter on the {@link ListView}
+            // so the list can be populated in the user interface
+            earthquakeListView.adapter = adapter
+            earthquakeListView.visibility = View.VISIBLE
         }
     }
 }

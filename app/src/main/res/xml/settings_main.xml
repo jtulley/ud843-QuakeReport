@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:title="@string/settings_title" >
+    <EditTextPreference
+        android:defaultValue="@string/settings_min_magnitude_default"
+        android:inputType="numberDecimal"
+        android:key="@string/settings_min_magnitude_key"
+        android:title="@string/settings_min_magnitude_label"
+        android:selectAllOnFocus="true"
+        />
+    <EditTextPreference
+        android:defaultValue="@string/settings_limit_default"
+        android:inputType="numberDecimal"
+        android:key="@string/settings_limit_key"
+        android:title="@string/settings_limit_label"
+        android:selectAllOnFocus="true"
+        />
+    <EditTextPreference
+        android:defaultValue="@string/settings_radius_default"
+        android:inputType="numberDecimal"
+        android:key="@string/settings_radius_key"
+        android:title="@string/settings_radius_label"
+        android:selectAllOnFocus="true"
+        />
+    <EditTextPreference
+        android:defaultValue="@string/settings_coordinates_default"
+        android:inputType="textNoSuggestions"
+        android:key="@string/settings_coordinates_key"
+        android:title="@string/settings_coordinates_label"
+        android:selectAllOnFocus="true"
+        />
+    <EditTextPreference
+        android:defaultValue="@string/settings_daycount_default"
+        android:inputType="numberDecimal"
+        android:key="@string/settings_daycount_key"
+        android:title="@string/settings_daycount_label"
+        android:selectAllOnFocus="true"
+        />
+    <ListPreference
+        android:key="@string/settings_orderby_key"
+        android:title="@string/settings_orderby_label"
+        android:defaultValue="@string/settings_orderby_default"
+        android:entries="@array/settings_orderby_entries"
+        android:entryValues="@array/settings_orderby_entryValues"
+        />
+</PreferenceScreen>

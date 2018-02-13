@@ -70,7 +70,7 @@ class EarthquakeDataArrayAdapter(context: Context, eqData: ArrayList<Earthquake>
     }
 
     fun getMagnitudeCircleColor(context: Context, magnitude: Double) : Int {
-        var resourceColor = 0
+        var resourceColor: Int
         var magnitudeFloor: Int = Math.floor(magnitude).toInt()
         when (magnitudeFloor) {
             1 -> resourceColor =  R.color.magnitude1

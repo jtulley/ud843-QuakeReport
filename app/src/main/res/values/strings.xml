@@ -15,4 +15,41 @@
 -->
 <resources>
     <string name="app_name">Quake Report</string>
+
+    <!-- Settings Menu Item [CHAR LIMIT=NONE] -->
+    <string name="settings_menu_item">Settings</string>
+    <!-- Settings Activity Title [CHAR LIMIT=NONE] -->
+    <string name="settings_title">Earthquake Settings</string>
+    <string name="settings_min_magnitude_label">Minimum Magnitude</string>
+    <string name="settings_min_magnitude_key" translatable="false">min_magnitude</string>
+    <string name="settings_min_magnitude_default" translatable="false">3</string>
+
+    <string name="settings_limit_label">Limit Results(0=unlimited)</string>
+    <string name="settings_limit_key" translatable="false">limit_count</string>
+    <string name="settings_limit_default" translatable="false">20</string>
+
+    <string name="settings_radius_label">Search Radius(km)</string>
+    <string name="settings_radius_key" translatable="false">search_radius</string>
+    <string name="settings_radius_default" translatable="false">2000</string>
+
+    <string name="settings_coordinates_label">Search Coordinates (latitude longitude)</string>
+    <string name="settings_coordinates_key" translatable="false">search_coordinates</string>
+    <string name="settings_coordinates_default" translatable="false">40.3721892,-111.7876166</string>
+
+    <string name="settings_orderby_label">Sort Results by</string>
+    <string name="settings_orderby_key" translatable="false">search_orderby</string>
+    <string name="settings_orderby_default" translatable="false">time</string>
+
+    <string name="settings_orderby_time_descending_label" translatable="false">Time(Newest First)</string>
+    <string name="settings_orderby_time_ascending_label" translatable="false">Time(Oldest First)</string>
+    <string name="settings_orderby_magnitude_descending_label" translatable="false">Magnitude(Highest First)</string>
+    <string name="settings_orderby_magnitude_ascending_label" translatable="false">Magnitude(Lowest First)</string>
+
+    <string name="settings_daycount_label">Show the earthquakes for this many days</string>
+    <string name="settings_daycount_key" translatable="false">search_daycount</string>
+    <string name="settings_daycount_default" translatable="false">2</string>
+    <!--  NOTE:  the orderby entries and entry values are in arrays.xml -->
+
+    <string name="no_earthquakes_found">No earthquakes found</string>
+    <string name="no_internet">No Internet connection</string>
 </resources>
